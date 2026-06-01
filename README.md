@@ -51,13 +51,36 @@ ContractScan uses AI to make contract review **free and accessible**:
 **Input:** Employment contract PDF
 
 **Output:**
-📋 CONTRACT TYPE Employment Agreement
-👥 PARTIES INVOLVED • Employee: John Doe • Employer: TechCorp Inc.
-📅 KEY DATES & DEADLINES • Start Date: January 15, 2024 • Review Period: 90 days • Notice Period: 30 days
-💰 FINANCIAL TERMS • Salary: $85,000/year • Bonus: Up to 10% based on performance • Health insurance: Employer pays 80%
-⚠️ RISKY CLAUSES 🔴 HIGH RISK: Non-compete clause prevents working in same industry for 2 years after leaving 🟡 MEDIUM RISK: Intellectual property assignment is very broad 🟢 LOW RISK: 30-day termination notice is shorter than standard 60 days
-❓ MISSING STANDARD CLAUSES • Severance package details • Remote work policy • Expense reimbursement procedure
-📝 PLAIN ENGLISH SUMMARY You're agreeing to work for TechCorp for $85k/year. The big red flag is the non-compete — you can't work in tech for 2 years if you leave. Also, they own everything you create, even outside work hours. Consider negotiating these points before signing.
+
+📋 **CONTRACT TYPE**
+Employment Agreement
+
+👥 **PARTIES INVOLVED**
+- Employee: John Doe
+- Employer: TechCorp Inc.
+
+📅 **KEY DATES & DEADLINES**
+- Start Date: January 15, 2024
+- Review Period: 90 days
+- Notice Period: 30 days
+
+💰 **FINANCIAL TERMS**
+- Salary: $85,000/year
+- Bonus: Up to 10% based on performance
+- Health insurance: Employer pays 80%
+
+⚠️ **RISKY CLAUSES**
+- 🔴 HIGH RISK: Non-compete clause prevents working in same industry for 2 years after leaving
+- 🟡 MEDIUM RISK: Intellectual property assignment is very broad
+- 🟢 LOW RISK: 30-day termination notice is shorter than standard 60 days
+
+❓ **MISSING STANDARD CLAUSES**
+- Severance package details
+- Remote work policy
+- Expense reimbursement procedure
+
+📝 **PLAIN ENGLISH SUMMARY**
+You're agreeing to work for TechCorp for $85k/year. The big red flag is the non-compete — you can't work in tech for 2 years if you leave. Also, they own everything you create, even outside work hours. Consider negotiating these points before signing.
 
 ---
 
