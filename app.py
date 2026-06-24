@@ -74,20 +74,27 @@ def login():
 
 def extract_text(file, filename):
     ext = os.path.splitext(filename)[1].lower()
+
     if ext == '.pdf':
-        pdf = PdfReader(file)
+        import pdfplumber
         text = ""
-        for page in pdf.pages:
-            text += page.extract_text() or ""
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
         return text, len(pdf.pages)
+
     elif ext in ('.docx', '.doc'):
         import docx
         doc = docx.Document(file)
         text = "\n".join([para.text for para in doc.paragraphs])
         return text, None
+
     elif ext == '.txt':
         text = file.read().decode('utf-8', errors='ignore')
         return text, None
+
     else:
         return None, None
 
