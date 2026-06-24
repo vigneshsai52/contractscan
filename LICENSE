@@ -1,21 +1,28 @@
-MIT License
+Built with ❤️ to help people understand what they sign.
 
-Copyright (c) 2026 UDAYAGIRI VIGNESH SAI
+---
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## What to Do Now
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+| Step | Action |
+|------|--------|
+| 1 | Replace `app.py` with the new code above |
+| 2 | Replace `index.html` with the new code above |
+| 3 | Replace `README.md` with the new content |
+| 4 | Commit and push to GitHub |
+| 5 | Redeploy on Railway (backend auto-deploys) |
+| 6 | Redeploy on Vercel (frontend auto-deploys) |
+| 7 | Update your resume with "ContractScan" |
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+---
+
+## Resume Entry (Copy-Paste Ready)
+
+```markdown
+**ContractScan — AI Contract Analyzer** | [GitHub](https://github.com/vigneshsai52/documind-ai) | [Live Demo](https://documind-6kv5kn89t-documind-ai-s-projects.vercel.app)
+• Built full-stack AI application that analyzes legal contracts, extracts key terms, and flags risky clauses
+• Multi-format document processing (PDF, DOCX, TXT) with edge case handling for scanned documents
+• AI prompt engineering for structured risk analysis (HIGH/MEDIUM/LOW) and plain-English summaries
+• Zero-cost AI integration using Groq API (free tier) vs paid alternatives
+• Deployed production app on Railway (backend) + Vercel (frontend) with CI/CD
+• Tech: Python, Flask, REST API, JavaScript, Prompt Engineering, Groq AI
