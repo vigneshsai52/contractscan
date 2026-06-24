@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from PyPDF2 import PdfReader
 import os
 import json
 from groq import Groq
@@ -14,18 +15,18 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# --- 1. DATABASE & AUTH SETUP ---
+# --- DATABASE & AUTH SETUP ---
 MONGO_URI = "mongodb+srv://batting370_db_user:mydb123@vignesh.txnygj9.mongodb.net/?appName=vignesh"
 client_db = MongoClient(MONGO_URI)
 db = client_db.contractscan_db 
 users_collection = db.users 
 history_collection = db.history 
 
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super_secret_backup_key")
+app.config["JWT_SECRET_KEY"] = "mySuperSecretKey123"
 jwt = JWTManager(app)
 # --------------------------------
 
-# --- 2. GROQ AI SETUP ---
+# --- GROQ AI SETUP ---
 api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
     raise ValueError("GROQ_API_KEY not found in environment variables")
@@ -42,7 +43,7 @@ ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.doc', '.txt'}
 def home():
     return "ContractScan API v2.0 - Now with Auth & Database!"
 
-# --- 3. AUTH ROUTES ---
+# --- AUTH ROUTES ---
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
@@ -73,27 +74,20 @@ def login():
 
 def extract_text(file, filename):
     ext = os.path.splitext(filename)[1].lower()
-
     if ext == '.pdf':
-        import pdfplumber
+        pdf = PdfReader(file)
         text = ""
-        with pdfplumber.open(file) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
+        for page in pdf.pages:
+            text += page.extract_text() or ""
         return text, len(pdf.pages)
-
     elif ext in ('.docx', '.doc'):
         import docx
         doc = docx.Document(file)
         text = "\n".join([para.text for para in doc.paragraphs])
         return text, None
-
     elif ext == '.txt':
         text = file.read().decode('utf-8', errors='ignore')
         return text, None
-
     else:
         return None, None
 
@@ -104,7 +98,33 @@ def analyze_contract(text):
             messages=[
                 {
                     "role": "system",
-                    "content": """You are an expert legal contract analyzer. Analyze the provided contract and return a structured analysis. (PUT YOUR ORIGINAL LONG PROMPT HERE!)"""
+                    "content": """You are an expert legal contract analyzer. Analyze the provided contract and return a structured analysis.
+
+Your response must follow this exact format:
+
+📋 CONTRACT TYPE
+[Identify: Employment Agreement, NDA, Rental/Lease, Service Agreement, Sales Contract, Loan Agreement, Partnership Agreement, etc.]
+
+👥 PARTIES INVOLVED
+• [Party 1 name and role]
+• [Party 2 name and role]
+
+📅 KEY DATES & DEADLINES
+• [Date]: [What happens on this date]
+
+💰 FINANCIAL TERMS
+• [Payment amount, frequency, penalties, fees, etc.]
+
+⚠️ RISKY CLAUSES
+🔴 HIGH RISK: [Clause that could cause major problems]
+🟡 MEDIUM RISK: [Clause that could be problematic]
+🟢 LOW RISK: [Minor concern]
+
+❓ MISSING STANDARD CLAUSES
+• [Missing protection or standard term]
+
+📝 PLAIN ENGLISH SUMMARY
+[Explain this contract simply. What should they watch out for?]"""
                 },
                 {
                     "role": "user",
@@ -118,7 +138,7 @@ def analyze_contract(text):
     except Exception as e:
         return f"AI analysis error: {str(e)}"
 
-# --- 4. PROTECTED ANALYSIS ROUTE ---
+# --- PROTECTED ANALYSIS ROUTE ---
 @app.route('/analyze', methods=['POST'])
 @jwt_required() 
 def analyze():
@@ -138,7 +158,7 @@ def analyze():
     try:
         text, pages = extract_text(file, file.filename)
         if text is None or not text.strip():
-            return jsonify({"error": "Could not extract text"}), 400
+            return jsonify({"error": "Could not extract text. PDF might be scanned/image-based. Try a text PDF or DOCX."}), 400
 
         contract_keywords = ['agreement', 'contract', 'terms', 'parties', 'obligations', 
                            'liability', 'confidential', 'termination', 'payment', 'clause']
@@ -157,10 +177,7 @@ def analyze():
         if pages is not None:
             result["pages"] = pages
 
-        # --- 5. SAVE TO DATABASE ---
         history_collection.insert_one(result.copy())
-        # ---------------------------
-
         result.pop('_id', None)
 
         return jsonify(result)
@@ -168,7 +185,7 @@ def analyze():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- 6. GET USER HISTORY ROUTE ---
+# --- GET USER HISTORY ROUTE ---
 @app.route('/history', methods=['GET'])
 @jwt_required()
 def get_history():
@@ -181,7 +198,6 @@ def get_history():
         histories.append(doc)
         
     return jsonify(histories), 200
-# ---------------------------------
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
