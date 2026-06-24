@@ -2,7 +2,7 @@
 
 The Python/Flask backend for the [ContractScan App](https://github.com/vigneshsai52/contractscan-frontend).
 
-🚀 **Live App:** [Click Here](https://contractscan-frontend.vercel.app) *(Takes ~50 seconds to wake up!)*
+🚀 **Live App:** [Click Here](https://contractscan-frontend-three.vercel.app/) *(Takes ~50 seconds to wake up!)*
 
 ## ⚡ API Features
 
