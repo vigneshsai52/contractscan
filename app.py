@@ -2,33 +2,30 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from PyPDF2 import PdfReader
 import os
-import json
+import sqlite3
 from groq import Groq
 from dotenv import load_dotenv
-from pymongo import MongoClient
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# --- DATABASE & AUTH SETUP ---
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://batting370_db_user:mydb123@vignesh.txnygj9.mongodb.net/?appName=vignesh")
+# --- SIMPLE SQLITE DATABASE (NO MORE MONGODB SSL ERRORS) ---
+def init_db():
+    conn = sqlite3.connect('contractscan.db')
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT)')
+    conn.commit()
+    conn.close()
 
-# THIS LINE FIXES THE SSL HANDSHAKE ERROR ON RAILWAY:
-import certifi
-client_db = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
-
-db = client_db.contractscan_db 
-users_collection = db.users 
-history_collection = db.history 
+init_db()
+# ----------------------------------------------------------
 
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "mySuperSecretKey123")
 jwt = JWTManager(app)
-# --------------------------------
 
 # --- GROQ AI SETUP ---
 api_key = os.getenv("GROQ_API_KEY")
@@ -45,7 +42,7 @@ ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.doc', '.txt'}
 
 @app.route('/')
 def home():
-    return "ContractScan API v2.0 - Now with Auth & Database!"
+    return "ContractScan API v3.0 - SQLite Edition - Bulletproof!"
 
 # --- AUTH ROUTES ---
 @app.route('/signup', methods=['POST'])
@@ -54,11 +51,17 @@ def signup():
     email = data.get('email')
     password = data.get('password')
 
-    if users_collection.find_one({"email": email}):
+    conn = sqlite3.connect('contractscan.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE email=?", (email,))
+    if c.fetchone():
+        conn.close()
         return jsonify({"error": "User already exists"}), 400
 
     hashed_password = generate_password_hash(password)
-    users_collection.insert_one({"email": email, "password": hashed_password})
+    c.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, hashed_password))
+    conn.commit()
+    conn.close()
     
     return jsonify({"message": "User created successfully"}), 201
 
@@ -68,8 +71,13 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
-    user = users_collection.find_one({"email": email})
-    if not user or not check_password_hash(user['password'], password):
+    conn = sqlite3.connect('contractscan.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE email=?", (email,))
+    user = c.fetchone()
+    conn.close()
+
+    if not user or not check_password_hash(user[2], password):
         return jsonify({"error": "Invalid email or password"}), 401
 
     access_token = create_access_token(identity=email)
@@ -104,31 +112,13 @@ def analyze_contract(text):
                     "role": "system",
                     "content": """You are an expert legal contract analyzer. Analyze the provided contract and return a structured analysis.
 
-Your response must follow this exact format:
-
 📋 CONTRACT TYPE
-[Identify: Employment Agreement, NDA, Rental/Lease, Service Agreement, Sales Contract, Loan Agreement, Partnership Agreement, etc.]
-
 👥 PARTIES INVOLVED
-• [Party 1 name and role]
-• [Party 2 name and role]
-
 📅 KEY DATES & DEADLINES
-• [Date]: [What happens on this date]
-
 💰 FINANCIAL TERMS
-• [Payment amount, frequency, penalties, fees, etc.]
-
-⚠️ RISKY CLAUSES
-🔴 HIGH RISK: [Clause that could cause major problems]
-🟡 MEDIUM RISK: [Clause that could be problematic]
-🟢 LOW RISK: [Minor concern]
-
+⚠️ RISKY CLAUSES (HIGH/MEDIUM/LOW)
 ❓ MISSING STANDARD CLAUSES
-• [Missing protection or standard term]
-
-📝 PLAIN ENGLISH SUMMARY
-[Explain this contract simply. What should they watch out for?]"""
+📝 PLAIN ENGLISH SUMMARY"""
                 },
                 {
                     "role": "user",
@@ -162,7 +152,7 @@ def analyze():
     try:
         text, pages = extract_text(file, file.filename)
         if text is None or not text.strip():
-            return jsonify({"error": "Could not extract text. PDF might be scanned/image-based. Try a text PDF or DOCX."}), 400
+            return jsonify({"error": "Could not extract text. Try a text-based PDF or DOCX."}), 400
 
         contract_keywords = ['agreement', 'contract', 'terms', 'parties', 'obligations', 
                            'liability', 'confidential', 'termination', 'payment', 'clause']
@@ -175,33 +165,15 @@ def analyze():
             "filename": file.filename,
             "is_likely_contract": is_likely_contract,
             "analysis": ai_result,
-            "user_email": current_user_email,
-            "date": datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+            "user_email": current_user_email
         }
         if pages is not None:
             result["pages"] = pages
-
-        history_collection.insert_one(result.copy())
-        result.pop('_id', None)
 
         return jsonify(result)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-# --- GET USER HISTORY ROUTE ---
-@app.route('/history', methods=['GET'])
-@jwt_required()
-def get_history():
-    current_user_email = get_jwt_identity()
-    user_history = history_collection.find({"user_email": current_user_email}).sort("date", -1).limit(10)
-    
-    histories = []
-    for doc in user_history:
-        doc.pop('_id', None) 
-        histories.append(doc)
-        
-    return jsonify(histories), 200
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
