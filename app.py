@@ -19,7 +19,8 @@ CORS(app)
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://batting370_db_user:mydb123@vignesh.txnygj9.mongodb.net/?appName=vignesh")
 
 # THIS LINE FIXES THE SSL HANDSHAKE ERROR ON RAILWAY:
-client_db = MongoClient(MONGO_URI, tlsAllowInvalidCertificates=True)
+import certifi
+client_db = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
 
 db = client_db.contractscan_db 
 users_collection = db.users 
