@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from PyPDF2 import PdfReader
 import os
 import json
 from groq import Groq
