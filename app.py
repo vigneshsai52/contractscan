@@ -3,7 +3,8 @@ from flask_cors import CORS
 import pdfplumber
 from PyPDF2 import PdfReader
 import os
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from groq import Groq
 from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -14,17 +15,43 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# --- SIMPLE SQLITE DATABASE ---
+# --- DATABASE SETUP ---
+def get_db_connection():
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        conn = psycopg2.connect(database_url, sslmode='require')
+        return conn
+    else:
+        import sqlite3
+        return sqlite3.connect('contractscan.db')
+
 def init_db():
-    conn = sqlite3.connect('contractscan.db')
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY, email TEXT, filename TEXT, raw_text TEXT, analysis TEXT, date TEXT)')
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    ''')
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS history (
+            id SERIAL PRIMARY KEY,
+            email TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            raw_text TEXT,
+            analysis TEXT,
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
 init_db()
-# ----------------------------------------------------------
 
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "mySuperSecretKey123")
 jwt = JWTManager(app)
@@ -34,7 +61,6 @@ api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
     raise ValueError("GROQ_API_KEY not found in environment variables")
 groq_client = Groq(api_key=api_key)
-# ------------------------
 
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
@@ -44,24 +70,23 @@ ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.doc', '.txt'}
 
 @app.route('/')
 def home():
-    return "ContractScan API v4.0 - History & Chat Edition!"
+    return "ContractScan API v5.0 - PostgreSQL Edition!"
 
-# --- AUTH ROUTES ---
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
 
-    conn = sqlite3.connect('contractscan.db')
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE email=?", (email,))
+    c.execute("SELECT * FROM users WHERE email=%s", (email,))
     if c.fetchone():
         conn.close()
         return jsonify({"error": "User already exists"}), 400
 
     hashed_password = generate_password_hash(password)
-    c.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, hashed_password))
+    c.execute("INSERT INTO users (email, password) VALUES (%s, %s)", (email, hashed_password))
     conn.commit()
     conn.close()
     
@@ -73,9 +98,9 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
-    conn = sqlite3.connect('contractscan.db')
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE email=?", (email,))
+    c.execute("SELECT * FROM users WHERE email=%s", (email,))
     user = c.fetchone()
     conn.close()
 
@@ -84,7 +109,6 @@ def login():
 
     access_token = create_access_token(identity=email)
     return jsonify({"access_token": access_token, "email": email}), 200
-# ----------------------
 
 def extract_text(file, filename):
     ext = os.path.splitext(filename)[1].lower()
@@ -98,7 +122,6 @@ def extract_text(file, filename):
                         text += page_text + "\n"
             return text, len(pdf.pages)
         except Exception:
-            # Fallback to PyPDF2 if pdfplumber fails on weird PDFs
             pdf = PdfReader(file)
             text = ""
             for page in pdf.pages:
@@ -144,7 +167,6 @@ def analyze_contract(text):
     except Exception as e:
         return f"AI analysis error: {str(e)}"
 
-# --- PROTECTED ANALYSIS ROUTE ---
 @app.route('/analyze', methods=['POST'])
 @jwt_required() 
 def analyze():
@@ -182,39 +204,35 @@ def analyze():
         if pages is not None:
             result["pages"] = pages
 
-        # --- SAVE TO HISTORY ---
-        conn = sqlite3.connect('contractscan.db')
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("INSERT INTO history (email, filename, raw_text, analysis, date) VALUES (?, ?, ?, ?, datetime('now'))", 
-                  (current_user_email, file.filename, text, ai_result))
+        c.execute(
+            "INSERT INTO history (email, filename, raw_text, analysis, date) VALUES (%s, %s, %s, %s, NOW())",
+            (current_user_email, file.filename, text, ai_result)
+        )
         conn.commit()
         conn.close()
-        # -----------------------
 
         return jsonify(result)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- HISTORY ROUTE ---
 @app.route('/history', methods=['GET'])
 @jwt_required()
 def get_history():
     current_user_email = get_jwt_identity()
-    conn = sqlite3.connect('contractscan.db')
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT id, filename, analysis, date FROM history WHERE email=? ORDER BY date DESC LIMIT 5", (current_user_email,))
+    conn = get_db_connection()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute(
+        "SELECT id, filename, analysis, date FROM history WHERE email=%s ORDER BY date DESC LIMIT 5",
+        (current_user_email,)
+    )
     rows = c.fetchall()
     conn.close()
     
-    histories = []
-    for row in rows:
-        histories.append({"id": row["id"], "filename": row["filename"], "analysis": row["analysis"], "date": row["date"]})
-        
-    return jsonify(histories), 200
+    return jsonify(rows), 200
 
-# --- CHAT ROUTE (Simulated RAG) ---
 @app.route('/chat', methods=['POST'])
 @jwt_required()
 def chat():
@@ -226,17 +244,16 @@ def chat():
     if not history_id or not question:
         return jsonify({"error": "Missing history_id or question"}), 400
 
-    conn = sqlite3.connect('contractscan.db')
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT raw_text FROM history WHERE id=? AND email=?", (history_id, current_user_email))
+    c.execute("SELECT raw_text FROM history WHERE id=%s AND email=%s", (history_id, current_user_email))
     row = c.fetchone()
     conn.close()
 
     if not row:
         return jsonify({"error": "Document not found"}), 404
 
-    document_text = row["raw_text"]
+    document_text = row[0]
 
     try:
         response = groq_client.chat.completions.create(
