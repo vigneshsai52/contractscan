@@ -34,6 +34,10 @@ api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
     raise ValueError("GROQ_API_KEY not found in environment variables")
 groq_client = Groq(api_key=api_key)
+
+# Groq turned off llama-3.1-8b-instant on 2026-08-16.
+# Replacement model recommended by Groq:
+GROQ_MODEL = "openai/gpt-oss-20b"
 # ------------------------
 
 UPLOAD_FOLDER = 'uploads'
@@ -118,7 +122,7 @@ def extract_text(file, filename):
 def analyze_contract(text):
     try:
         response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=GROQ_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -138,9 +142,10 @@ def analyze_contract(text):
                 }
             ],
             temperature=0.3,
-            max_tokens=1500
+            # Raised from 1500: the new model "thinks" first, and that uses tokens.
+            max_tokens=3000
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or "AI returned an empty answer. Please try again."
     except Exception as e:
         return f"AI analysis error: {str(e)}"
 
@@ -240,7 +245,7 @@ def chat():
 
     try:
         response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=GROQ_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -252,9 +257,10 @@ def chat():
                 }
             ],
             temperature=0.3,
-            max_tokens=500
+            # Raised from 500: the new model "thinks" first, and that uses tokens.
+            max_tokens=1500
         )
-        answer = response.choices[0].message.content
+        answer = response.choices[0].message.content or "AI returned an empty answer. Please try again."
         return jsonify({"answer": answer}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
